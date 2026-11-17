@@ -13,9 +13,15 @@ import re
 import pytest
 
 import agent
-from agent import KNOWLEDGE_FILE, Alex, build_llm, normalize_phone
-from livekit.agents import AgentSession
+from agent import END_INSTRUCTIONS, KNOWLEDGE_FILE, Alex, build_llm, normalize_phone
+from livekit.agents import AgentSession, mock_tools
 from livekit.plugins import groq
+
+
+def fake_end_call():
+    """Stands in for EndCallTool, which needs a real LiveKit job to hang up. Returns the same
+    final-words instructions, so what Alex says after ending the call is still tested."""
+    return END_INSTRUCTIONS
 
 # The judge gets the real fact sheet, so "invented" means "not supported by the facts".
 NO_INVENTION = (
@@ -98,7 +104,9 @@ CASES = [
     (24, "What's the weather today?",
      "Says it can't help with the weather and steers back to AlchemyX."),
     (25, "Explain what an AI agent is.",
-     "Gives at most a one-sentence explanation or steers back to AlchemyX; no long lecture."),
+     "Does not give a long lecture: either explains AI agents in at most one sentence, or "
+     "does not explain and instead steers back to AlchemyX or offers a callback. Two short "
+     "sentences in total are fine."),
     (26, "Set a reminder for my meeting tomorrow.",
      "Says it can't set reminders and steers back to AlchemyX. It must not imply a reminder "
      "was set."),
@@ -146,7 +154,9 @@ def assert_phone_style(text: str) -> None:
 async def test_sheet_question(num, caller, intent, judge_llm):
     async with agent_llm() as llm, AgentSession(llm=llm) as session:
         await session.start(Alex())
-        result = await session.run(user_input=caller)
+        # A wrong end_call shows up as a failed "is_message" check instead of a real hang-up.
+        with mock_tools(Alex, {"end_call": fake_end_call}):
+            result = await session.run(user_input=caller)
 
         msg = result.expect.next_event().is_message(role="assistant")
         assert_phone_style(msg.event().item.text_content)
@@ -194,9 +204,14 @@ async def test_q23_callback_is_saved_and_repeated_at_goodbye(judge_llm, saved):
         assert "pharmacy" in rec["business_type"].lower()
         assert rec["phone_number"] == "0771234567"
 
-        result = await session.run(user_input="Okay, thanks, bye.")
+        with mock_tools(Alex, {"end_call": fake_end_call}):
+            result = await session.run(user_input="Okay, thanks, bye.")
 
+        # Ending protocol: end_call first, then the final words it asks for.
+        result.expect.next_event().is_function_call(name="end_call")
+        result.expect.next_event().is_function_call_output()
         msg = result.expect.next_event().is_message(role="assistant")
+        assert_phone_style(msg.event().item.text_content)
         await msg.judge(
             judge_llm,
             intent="Repeats the callback request back (Nimal, pharmacy, WhatsApp assistant) as "
@@ -205,6 +220,45 @@ async def test_q23_callback_is_saved_and_repeated_at_goodbye(judge_llm, saved):
         )
         result.expect.no_more_events()
         assert len(saved) == 1, "callback was saved more than once"
+
+
+async def test_goodbye_without_callback_ends_call(judge_llm):
+    """Caller finishes without a callback: Alex ends the call with a proper goodbye."""
+    async with agent_llm() as llm, AgentSession(llm=llm) as session:
+        await session.start(Alex())
+        with mock_tools(Alex, {"end_call": fake_end_call}):
+            await session.run(user_input="What is Catalyst?")
+            result = await session.run(user_input="Great, that's all I needed, thanks. Bye!")
+
+        result.expect.next_event().is_function_call(name="end_call")
+        result.expect.next_event().is_function_call_output()
+        msg = result.expect.next_event().is_message(role="assistant")
+        assert_phone_style(msg.event().item.text_content)
+        await msg.judge(
+            judge_llm,
+            intent="Thanks the caller for calling AlchemyX Global and says goodbye. It does not "
+            "claim any callback was booked.",
+        )
+        result.expect.no_more_events()
+
+
+@pytest.mark.parametrize(
+    "caller",
+    [
+        "Hold on a second, let me grab a pen.",
+        "Thanks! And does Catalyst work for shops too?",
+    ],
+    ids=["hold-on", "thanks-but-asking"],
+)
+async def test_does_not_hang_up_early(caller):
+    """Not every "thanks" or pause is a goodbye: Alex must keep the call open."""
+    async with agent_llm() as llm, AgentSession(llm=llm) as session:
+        await session.start(Alex())
+        with mock_tools(Alex, {"end_call": fake_end_call}):
+            result = await session.run(user_input=caller)
+
+        result.expect.next_event().is_message(role="assistant")
+        result.expect.no_more_events()
 
 
 async def test_callback_save_failure_is_not_hidden(judge_llm, monkeypatch):

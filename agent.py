@@ -22,6 +22,7 @@ from livekit.agents import (
     inference,
     room_io,
 )
+from livekit.agents.beta import EndCallTool
 from livekit.plugins import groq, noise_cancellation, silero
 
 ROOT = Path(__file__).resolve().parent
@@ -34,6 +35,14 @@ CALLBACKS_FILE = ROOT / "data" / "callbacks.jsonl"
 AGENT_NAME = "alchemyx-alex"
 
 GREETING ="Hi, thanks for calling AlchemyX Global, this is Alex. How can I help you today?"
+
+# Returned by end_call: the model speaks these final words, then the call is hung up.
+END_INSTRUCTIONS = (
+    "The call is ending now. Say your final words in at most two sentences: if you saved a "
+    "callback request on this call, first repeat it back in one natural sentence (who, what "
+    "they need, and for which business); then thank them for calling AlchemyX Global and "
+    "say goodbye. A bare \"You're welcome, goodbye\" is not enough."
+)
 
 logger = logging.getLogger("alex")
 
@@ -79,7 +88,23 @@ def save_callback(record: dict) -> None:
 
 class Alex(Agent):
     def __init__(self, caller_number: str | None = None) -> None:
-        super().__init__(instructions=build_instructions(caller_number))
+        super().__init__(
+            instructions=build_instructions(caller_number),
+            tools=[
+                # Speaks the goodbye from END_INSTRUCTIONS, then deletes the room,
+                # which hangs up phone (SIP) callers too.
+                EndCallTool(
+                    end_instructions=END_INSTRUCTIONS,
+                    delete_room=True,
+                    ignore_on_enter=True,
+                    extra_description=(
+                        "Also call it when the caller says thanks and goodbye after their "
+                        "questions are answered. Do not call it when they ask you to hold on "
+                        "or wait, or when they say thanks but are still asking questions."
+                    ),
+                )
+            ],
+        )
         self._caller_number = caller_number
 
     @function_tool
@@ -132,10 +157,10 @@ class Alex(Agent):
             ) from e
         logger.info("callback saved: %s", record)
         return (
-            "Saved. Tell the caller the team will contact them. When the caller says goodbye, "
-            "repeat the request back in one natural sentence, thank them and say goodbye, "
-            f'for example: "So the team will call {record["name"]} about {record["need"]} '
-            f'for your {record["business_type"]}. Thanks for calling AlchemyX Global, goodbye!"'
+            "Saved. Tell the caller the team will contact them. When the caller ends the call, "
+            "use end_call; your final words will then repeat this request back, for example: "
+            f'"So the team will call {record["name"]} about {record["need"]} for your '
+            f'{record["business_type"]}. Thanks for calling AlchemyX Global, goodbye!"'
         )
 
 
