@@ -126,6 +126,21 @@ class Alex(Agent):
             need: What the caller needs, in a few words.
             phone_number: The number the caller confirmed, as digits only.
         """
+        missing = [
+            label
+            for label, value in (
+                ("their name", name),
+                ("their type of business", business_type),
+                ("what they need", need),
+            )
+            if not (value or "").strip()
+        ]
+        if missing:
+            raise ToolError(
+                f"Not saved: missing {', '.join(missing)}. Ask the caller for one or two of "
+                "these, then save again once you have everything."
+            )
+
         phone = normalize_phone(phone_number) or (
             normalize_phone(self._caller_number) if not phone_number else None
         )
@@ -134,8 +149,6 @@ class Alex(Agent):
                 "Not saved: no valid phone number. Ask the caller for the best number to "
                 "reach them, read it back in words, and save again once they confirm."
             )
-        if not name.strip():
-            raise ToolError("Not saved: ask the caller for their name first.")
 
         record = {
             "created_at": datetime.now(timezone.utc).isoformat(),

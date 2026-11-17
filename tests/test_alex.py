@@ -14,7 +14,7 @@ import pytest
 
 import agent
 from agent import END_INSTRUCTIONS, KNOWLEDGE_FILE, Alex, build_llm, normalize_phone
-from livekit.agents import AgentSession, mock_tools
+from livekit.agents import AgentSession, ToolError, mock_tools
 from livekit.plugins import groq
 
 
@@ -38,8 +38,9 @@ CASES = [
     (1, "Hi, who am I speaking to?",
      "Says it is Alex from AlchemyX Global and offers to help."),
     (2, "What does AlchemyX do?",
-     "Says AlchemyX is an AI agency that automates repetitive business work, such as "
-     "replying to customer messages or calls."),
+     "Says the company is an AI agency that automates repetitive business work, such as "
+     "replying to customer messages or calls. Saying \"we\" instead of the name AlchemyX is "
+     "fine, since the caller phoned AlchemyX."),
     (3, "Where are you based?",
      "Says AlchemyX is based in Sri Lanka; mentioning Beruwala is fine."),
     (4, "What are your working hours?",
@@ -176,6 +177,26 @@ async def test_sheet_question(num, caller, intent, judge_llm):
 )
 def test_normalize_phone(raw, expected):
     assert normalize_phone(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "fields,error",
+    [
+        (dict(name="", business_type="", need="", phone_number=""), "missing their name"),
+        (dict(name="Nimal", business_type="pharmacy", need="", phone_number="0771234567"),
+         "what they need"),
+        (dict(name="Nimal", business_type="pharmacy", need="WhatsApp assistant",
+              phone_number="0000000000"), "no valid phone number"),
+    ],
+    ids=["all-empty", "no-need", "placeholder-phone"],
+)
+async def test_record_callback_refuses_incomplete_requests(fields, error, monkeypatch):
+    """Code, not the model, decides whether a request is complete enough to save."""
+    records = []
+    monkeypatch.setattr(agent, "save_callback", records.append)
+    with pytest.raises(ToolError, match=error):
+        await Alex().record_callback(None, **fields)
+    assert records == []
 
 
 @pytest.fixture

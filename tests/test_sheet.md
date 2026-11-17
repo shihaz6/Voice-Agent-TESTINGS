@@ -54,4 +54,7 @@ Automated version: `tests/test_alex.py` (run with `.venv\Scripts\python.exe -m p
 ## Round log
 | Round | Date | Prompt change made | Score /30 | Inventions? |
 |---|---|---|---|---|
-| 1 | | Baseline | | |
+| 1 | 2026-11-17 | Baseline (automated run) | 27 | None. Fails: q14 (test too strict), q21 (no callback offer), q29 (3 sentences) |
+| 2 | 2026-11-17 | Two-sentence cap, no digits, plain "I can't", contact-details rule, phone check in code | 27 | None. Fails: q06 (digits), q23 (bare goodbye), q25 (test too strict) |
+| 3 | 2026-11-17 | end_call tool: final words, then hang up | 26 | None. Fails: q02 (test too strict), q06 (digits), q22 (empty save attempt), q29 (no steer-back) |
+| 4 | 2026-11-17 | Fact sheet numbers in words, empty-field guard in code, exact instructions-refusal line | 29 + q23 not run | None. All 29 single-question cases pass; q23 hit Groq's daily token limit |

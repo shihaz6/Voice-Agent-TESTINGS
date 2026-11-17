@@ -5,12 +5,12 @@
 - Tagline: Where AI Meets Business
 - What we do: We are an AI agency. We build AI automation systems that take repetitive work off businesses, like answering customer messages and calls, so owners can focus on running the business.
 - Based in: Beruwala, Sri Lanka
-- Working hours: Open 24 hours
+- Working hours: Open twenty four hours
 
 ## Products
 
 ### Catalyst — AI WhatsApp Front Desk
-- What it is: An AI assistant that replies to customers on WhatsApp for the business, 24 hours a day.
+- What it is: An AI assistant that replies to customers on WhatsApp for the business, twenty four hours a day.
 - Built first for: Tutors and tuition classes. Also suitable for other businesses that get lots of customer messages, such as pharmacies and shops.
 - Languages: Replies in English, Sinhala and Tamil, and understands Singlish and Tanglish.
 - Human handover: When a question needs a real person, it hands the chat over to the owner.
