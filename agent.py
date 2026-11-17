@@ -3,9 +3,8 @@
 from dotenv import load_dotenv
 
 from livekit import agents
-from livekit.agents import Agent, AgentSession, RoomInputOptions
+from livekit.agents import Agent, AgentSession, inference, room_io
 from livekit.plugins import groq, noise_cancellation, silero
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 load_dotenv(".env.local")
 
@@ -23,18 +22,21 @@ class Assistant(Agent):
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         stt=groq.STT(model="whisper-large-v3-turbo"),
-        llm=groq.LLM(model="llama-3.3-70b-versatile"),
+        # Low reasoning effort keeps the time to first word short on a call.
+        llm=groq.LLM(model="openai/gpt-oss-120b", reasoning_effort="low"),
         tts=groq.TTS(),
         vad=silero.VAD.load(),
-        turn_detection=MultilingualModel(),
+        turn_detection=inference.TurnDetector(),
     )
 
     await session.start(
         room=ctx.room,
         agent=Assistant(),
-        room_input_options=RoomInputOptions(
-            # BVCTelephony is tuned for phone-call audio (SIP).
-            noise_cancellation=noise_cancellation.BVCTelephony(),
+        room_options=room_io.RoomOptions(
+            audio_input=room_io.AudioInputOptions(
+                # BVCTelephony is tuned for phone-call (SIP) audio.
+                noise_cancellation=noise_cancellation.BVCTelephony(),
+            ),
         ),
     )
 
