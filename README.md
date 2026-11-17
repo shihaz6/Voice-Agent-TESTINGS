@@ -17,6 +17,12 @@ text-to-speech (Orpheus). Voice detection and turn detection run locally.
 | `tests/test_sheet.md` | The 30-question manual test sheet and round log. |
 | `tests/test_alex.py` | The same 30 questions as automated tests, plus callback save and failure tests. |
 
+## Docs
+
+- [`docs/architecture.md`](docs/architecture.md): components, the voice pipeline, how a call flows, tools, deployment and testing
+- [`docs/decisions.md`](docs/decisions.md): design decisions and why, grouped as major, medium and minor
+- [`docs/limitations.md`](docs/limitations.md): what Alex can't do yet and the known risks, with fixes
+
 ## Setup (Windows)
 
 Requires Python 3.10–3.13 (3.15 is not yet supported by `livekit-blingfire`).

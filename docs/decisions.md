@@ -195,7 +195,3 @@ rejects placeholders such as `0000000000` and `1111111111`.
 ### m7. Pinned dependency versions
 `requirements.txt` pins `livekit-agents` 1.8.12 and its plugins. The SDK changes quickly, so
 upgrades are deliberate: on a branch, with the full test suite.
-
-### m8. Region chosen by the user
-`ap-south` was chosen by the user from `us-east`, `eu-central` and `ap-south` when the
-agent was first created.

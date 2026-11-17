@@ -1,0 +1,124 @@
+# Limitations
+
+What Alex can't do yet, and the known risks. Fix the items marked **before real callers**
+before giving Alex a public phone number.
+
+| # | Limitation | Severity |
+|---|---|---|
+| L1 | Groq free-tier limits; no fallback LLM | Before real callers |
+| L2 | No phone number yet | Before real callers |
+| L3 | Callback requests are lost on LiveKit Cloud | Before real callers |
+| L4 | No recording disclosure; recording setting unchecked | Before real callers |
+| L5 | Keys were shared in chat | Before real callers |
+| L6 | English only | High |
+| L7 | No human transfer, booking or messaging | Medium |
+| L8 | Knowledge is limited to the fact sheet | Medium |
+| L9 | Speech recognition of local names and numbers | Medium |
+| L10 | No memory between calls; no analytics | Low |
+| L11 | Tests are slow, use quota and are not fully deterministic | Low |
+| L12 | Platform and tooling constraints | Low |
+
+---
+
+## L1. Groq free-tier limits; no fallback LLM
+- **Limits:**
+  - 8,000 tokens per minute and 1,000 requests per day per model.
+  - 200,000 tokens per day for `gpt-oss-120b`.
+- **Usage:** Each turn sends the full prompt and fact sheet, so a busy day, or a single full
+  test run, can use up the daily budget. This happened during development.
+- **Shared quota:** The tests and the live agent use the same key and the same quota.
+- **Failure:** Once a limit is hit, or if Groq has an outage, there is no second LLM, STT or TTS
+  to fall back to. The caller hears silence or a stalled call.
+- **Fix:** Move to a paid Groq tier, and add `llm.FallbackAdapter` (and the STT/TTS fallback
+  adapters) with a second provider.
+
+## L2. No phone number yet
+- Alex is reachable only through the LiveKit Agents console/Playground in a browser.
+- **Fix:** A SIP trunk (a Sri Lankan provider or a LiveKit phone number) and a dispatch rule
+  that names `alchemyx-alex`. Numbers cost money.
+
+## L3. Callback requests are lost on LiveKit Cloud
+- `data/callbacks.jsonl` is written inside the container, and the container's filesystem is
+  temporary. Requests are lost on every restart or redeploy.
+- In production today, the only record is the `callback saved: {...}` line in `lk agent logs`.
+- Nobody is notified when a request comes in, so a lead can sit unseen.
+- **Fix:** Replace `save_callback()` with a real destination, such as a Google Sheet or a CRM,
+  plus a WhatsApp or email alert.
+
+## L4. No recording disclosure; recording setting unchecked
+- Agent observability (transcripts and audio in LiveKit Cloud) is a project setting. Checking
+  it needs a signed-in `lk cloud auth` session, which hasn't been done.
+- If recording is on, callers aren't told. Sri Lanka's Personal Data Protection Act applies
+  to recorded calls and callers' phone numbers.
+- **Fix:** Check the setting. If recording stays on, add a short notice to the greeting and
+  decide how long recordings are kept.
+
+## L5. Keys were shared in chat
+- The LiveKit API key and secret and the Groq key were pasted in plain text during setup.
+- They were never committed to git, but they should be treated as exposed.
+- **Fix:** Rotate the keys, then:
+  - update `.env.local`;
+  - update the Cloud secret with `lk agent update --secrets GROQ_API_KEY=...`;
+  - remove the stale `lk` CLI project entry (its key returns 401).
+
+## L6. English only
+- Whisper is set up for English, and Orpheus `orpheus-v1-english` speaks only English.
+- A caller who speaks Sinhala or Tamil will be misunderstood or answered in English.
+- This is the biggest market gap: Catalyst itself is sold on handling Sinhala, Tamil, Singlish
+  and Tanglish.
+- **Fix:** An STT and TTS provider with good Sinhala and Tamil support, language detection,
+  and a prompt and tests for each language.
+
+## L7. No human transfer, booking or messaging
+- Alex can't:
+  - transfer a call to a person;
+  - book a demo in a calendar;
+  - send a WhatsApp message, SMS or email;
+  - set reminders.
+- The prompt makes Alex say so plainly instead of pretending.
+- **Fix:** Add tools one at a time, for example SIP transfer, Cal.com or Google Calendar
+  booking, and a message API. Each needs prompt rules and tests.
+
+## L8. Knowledge is limited to the fact sheet
+- The fact sheet has no:
+  - phone number, WhatsApp number or email;
+  - prices or package differences;
+  - setup time, team size or client list.
+- Alex offers a callback for all of these, so many calls end with "the team will get back to
+  you".
+- The whole sheet is sent on every turn. That works at about forty lines; a much larger sheet
+  would need retrieval.
+- **Fix:** Add the missing facts to `knowledge/alchemyx_facts.md`, with numbers in words.
+  Then rerun the tests.
+
+## L9. Speech recognition of local names and numbers
+- Whisper can mishear Sri Lankan names, business names and spoken phone numbers, especially
+  on poor phone lines.
+- Alex reads numbers back for confirmation, but names are not spelled back.
+- `normalize_phone` checks only length and placeholders. It doesn't check the number format.
+- **Fix:** Ask the caller to spell their name when it matters, and validate Sri Lankan number
+  formats.
+
+## L10. No memory between calls; no analytics
+- Every call starts fresh, so a repeat caller isn't recognised.
+- There is no call summary, dashboard, or list of questions Alex couldn't answer.
+- **Fix:** A post-call summary written to the lead store, plus a lookup by caller ID.
+
+## L11. Tests are slow, use quota and are not fully deterministic
+- A full run takes several minutes because of the per-minute limits, and it uses daily quota.
+- The LLM judge can give slightly different verdicts between runs.
+- The tests run in text mode. They don't cover audio problems: mishearing, interruptions,
+  turn-taking or latency. These still need manual checks from `tests/test_sheet.md`.
+- **Fix:** LiveKit simulations in audio mode before each release; run the full suite at
+  quiet times.
+
+## L12. Platform and tooling constraints
+- **Python:** 3.10 to 3.13 only; 3.15 can't install `livekit-blingfire`.
+- **Dispatch:** Alex is a named agent, so it never joins rooms unless they request
+  `alchemyx-alex`.
+- **Call ending:** `EndCallTool` is a beta API and may change in SDK upgrades.
+- **Noise cancellation:** Whether `BVCTelephony` is billed on the free LiveKit plan has not
+  been confirmed.
+- **CLI:** `lk` is not on PATH. Its saved project has a stale key, so commands pass the URL and
+  credentials explicitly.
+- **Latency:** Time to first word hasn't been measured on real phone calls.
