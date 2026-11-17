@@ -1,4 +1,4 @@
-﻿livekit==1.2.1
+livekit==1.2.1
 livekit-agents==1.8.12
 livekit-api==1.2.3
 livekit-blingfire==1.2.0
@@ -9,4 +9,6 @@ livekit-plugins-openai==1.8.12
 livekit-plugins-silero==1.8.12
 livekit-plugins-turn-detector==1.8.12
 livekit-protocol==1.1.32
+pytest==9.2.0
+pytest-asyncio==1.5.0
 python-dotenv==1.2.4
