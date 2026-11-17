@@ -26,7 +26,9 @@ async def entrypoint(ctx: agents.JobContext):
         llm=groq.LLM(model="openai/gpt-oss-120b", reasoning_effort="low"),
         tts=groq.TTS(),
         vad=silero.VAD.load(),
-        turn_detection=inference.TurnDetector(),
+        # Pinned to the local model. Left on auto, it uses LiveKit Inference's
+        # hosted "v1" model in console/dev mode or when deployed to LiveKit Cloud.
+        turn_detection=inference.TurnDetector(version="v1-mini"),
     )
 
     await session.start(
